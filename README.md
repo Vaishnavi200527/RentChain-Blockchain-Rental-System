@@ -786,7 +786,7 @@ RentChain-Blockchain-Rental-System/
 └── README.md
 ```
 
-*Note: Add `contracts/RentalAgreement.sol` to the repository if it is not already present.*
+*Note: Add `src/contracts/RentalAgreement.sol` to the repository if it is not already present.*
 
 ---
 
