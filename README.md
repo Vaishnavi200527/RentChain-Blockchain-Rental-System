@@ -239,8 +239,6 @@ To use the landlord and tenant accounts:
 
 ### Step 3: Identify the Accounts
 
-Keep these roles separate:
-
 | Account | Role |
 |---|---|
 | Ganache Account 0 | Landlord |
@@ -252,36 +250,60 @@ The landlord creates the agreement, and only the registered tenant can accept it
 
 ## 📜 8. Smart Contract Compilation and Deployment
 
-The project uses a Solidity smart contract named:
+**IMPORTANT: Every team member must obtain the Solidity smart contract code directly from this GitHub repository. The contract code is already included in the project. You do not need to write the contract yourself or ask another team member to send it separately.**
 
-`RentalAgreement.sol`
+### Step 1: Locate the Solidity File in the Repository
 
-The contract should be available in the project's source repository. If it is not included, obtain the original source file from the project team and place it in a folder named `contracts/`.
+1. Open the cloned project in VS Code.
+2. In the VS Code Explorer, open the `src` folder.
+3. Inside `src`, open the `contracts` folder.
+4. Locate the file named `RentalAgreement.sol`.
 
-### Step 1: Open Remix IDE
+The exact path is:
 
-Visit:
+```text
+RentChain-Blockchain-Rental-System/
+└── src/
+    └── contracts/
+        └── RentalAgreement.sol
+```
 
-https://remix.ethereum.org/
+5. Open `RentalAgreement.sol`.
+6. Select the complete Solidity code using `Ctrl + A`.
+7. Copy the code using `Ctrl + C`.
 
-Create or open `RentalAgreement.sol`.
+**This is the original smart contract source code provided in the GitHub repository. Use this exact file for deployment.**
 
-### Step 2: Compile the Contract
+### Step 2: Paste the Code into Remix IDE
 
-1. Open the Solidity Compiler panel.
+1. Open https://remix.ethereum.org/
+2. Open the File Explorer panel on the left.
+3. Create a new file named `RentalAgreement.sol`.
+4. Open the newly created file.
+5. Paste the complete code copied from `src/contracts/RentalAgreement.sol` in VS Code using `Ctrl + V`.
+6. Save the file.
+
+**Alternative method:** You can also download the `RentalAgreement.sol` file from the GitHub repository and upload it directly into the Remix workspace using the File Explorer upload option.
+
+Do not paste the GitHub README contents. Only copy the Solidity source code from `RentalAgreement.sol`.
+
+### Step 3: Compile the Contract
+
+1. Open the Solidity Compiler panel in Remix.
 2. Select Solidity compiler version `0.8.20` or a compatible version.
-3. Click **Compile RentalAgreement.sol**.
-4. Confirm successful compilation.
+3. Select `RentalAgreement.sol`.
+4. Click **Compile RentalAgreement.sol**.
+5. Confirm that compilation is successful.
 
-### Step 3: Connect Remix to MetaMask
+### Step 4: Connect Remix to MetaMask
 
 1. Open Deploy & Run Transactions.
 2. Select **Browser Extension** as the environment.
-3. Select MetaMask.
+3. Connect MetaMask when prompted.
 4. Make sure MetaMask is connected to Ganache Local.
-5. Select the Landlord account.
+5. Select the Landlord account (Ganache Account 0).
 
-### Step 4: Deploy the Contract
+### Step 5: Deploy the Contract
 
 1. Select `RentalAgreement` from the contract dropdown.
 2. Keep Value set to `0`.
@@ -291,19 +313,21 @@ Create or open `RentalAgreement.sol`.
 
 After deployment, Remix displays the deployed contract under Deployed Contracts.
 
-### Step 5: Copy the Contract Address
+### Step 6: Copy the Contract Address
 
-Copy the newly deployed contract address.
+Copy the newly deployed contract address displayed in Remix.
 
 Every teammate deploying on their own Ganache instance will receive a different contract address.
 
-**Important:** Do not blindly reuse the contract address from another person's computer.
+**Important:** Do not blindly reuse another person's contract address. The contract address must belong to the current teammate's Ganache blockchain.
 
 ---
 
 ## 🔗 9. Connect the Smart Contract to React
 
-Open the following file:
+After successful deployment, connect the newly deployed contract to the React application.
+
+Open the following file in VS Code:
 
 ```text
 src/blockchain/contract.js
@@ -327,7 +351,7 @@ export const CONTRACT_ADDRESS =
   "YOUR_NEWLY_DEPLOYED_CONTRACT_ADDRESS";
 ```
 
-Replace the placeholder with the address copied from Remix.
+Replace the placeholder with the contract address copied from Remix.
 
 For example:
 
@@ -349,7 +373,7 @@ It should include the functions and events used by the application:
 
 Save the file.
 
-**Important:** Every team member must update the contract address after deploying their own smart contract. The address in this file is specific to the local blockchain deployment.
+**Important:** Every team member must update the contract address after deploying their own smart contract. The address in this file is specific to their local blockchain deployment.
 
 ---
 
@@ -389,9 +413,7 @@ Follow these steps to verify that all the main features work correctly.
 4. Select the Landlord account in MetaMask.
 5. Approve the connection.
 
-Expected result:
-
-The landlord wallet address should appear in the application.
+**Expected result:** The landlord wallet address should appear in the application.
 
 ### Test 2: Create a Rental Agreement
 
@@ -402,7 +424,7 @@ Enter the following sample details:
 | Field | Sample Value |
 |---|---|
 | Property Reference | FLAT-A105 |
-| Tenant Wallet Address | Ganache Account 1 |
+| Tenant Wallet Address | Ganache Account 1 address |
 | Monthly Rent | 15000 |
 | Security Deposit | 30000 |
 | Rental Start Date | A future date |
@@ -414,7 +436,7 @@ MetaMask will display a transaction confirmation.
 
 Approve the transaction.
 
-Expected result:
+**Expected result:**
 
 - Agreement is successfully created.
 - A unique agreement ID is generated.
@@ -470,7 +492,7 @@ In Remix:
 4. Click Transact.
 5. Confirm the transaction in MetaMask.
 
-Expected result:
+**Expected result:**
 
 - Transaction is successfully mined.
 - `AgreementAccepted` event is generated.
@@ -667,7 +689,7 @@ The following test cases can be used to verify the application.
 | Accept using another account | Transaction rejected |
 | Accept same agreement again | Transaction rejected |
 | Retrieve valid agreement ID | Agreement details returned |
-| Retrieve invalid agreement ID | Transaction call rejected |
+| Retrieve invalid agreement ID | Read call reverts with "Agreement does not exist" |
 
 ### Successful Demonstration Scenario
 
@@ -707,7 +729,7 @@ This project is a working academic prototype.
 - It uses a local Ganache blockchain.
 - It requires MetaMask and a compatible network.
 - Transactions require test ETH and gas.
-- The current smart contract records agreement information and acceptance status.
+- The current smart contract records agreement information and tenant acceptance status.
 - It does not transfer rent or security deposits.
 - It does not provide automatic escrow.
 - It does not perform government identity verification or legal registration.
@@ -737,17 +759,22 @@ Every team member should:
 
 1. Clone the GitHub repository.
 2. Install Node.js and project dependencies.
-3. Install and start Ganache.
-4. Configure MetaMask with the Ganache network.
-5. Import their own local test accounts.
-6. Compile and deploy `RentalAgreement.sol` using Remix.
-7. Update the deployed contract address in `contract.js`.
-8. Run the React application using `npm run dev`.
-9. Connect the Landlord wallet.
-10. Create a rental agreement.
-11. Switch to the Tenant wallet.
-12. Accept the agreement.
-13. Verify the final status using `getAgreement()`.
+3. Start Ganache and configure MetaMask.
+4. Import their own local test accounts.
+5. Open `src/contracts/RentalAgreement.sol` in VS Code.
+6. Copy the complete Solidity code from that file.
+7. Paste it into a new `RentalAgreement.sol` file in Remix IDE.
+8. Compile and deploy the contract through Remix.
+9. Copy the newly deployed contract address.
+10. Update `CONTRACT_ADDRESS` in `src/blockchain/contract.js`.
+11. Run the React application using `npm run dev`.
+12. Connect the Landlord wallet.
+13. Create a rental agreement.
+14. Switch to the Tenant wallet.
+15. Accept the agreement.
+16. Verify the final status using `getAgreement()`.
+
+**Remember:** The Solidity code is provided in this repository. Every team member must copy it from `src/contracts/RentalAgreement.sol` and use it in Remix IDE before deployment.
 
 All team members should use their own local Ganache deployment. A contract deployed on one person's local computer will not automatically be available on another person's computer.
 
@@ -766,7 +793,8 @@ RentChain-Blockchain-Rental-System/
 │   ├── assets/
 │   ├── blockchain/
 │   │   └── contract.js
-│   │
+│   ├── contracts/
+│   │   └── RentalAgreement.sol
 │   ├── components/
 │   ├── pages/
 │   ├── App.css
@@ -774,25 +802,20 @@ RentChain-Blockchain-Rental-System/
 │   ├── index.css
 │   └── main.jsx
 │
-├── contracts/
-│   └── RentalAgreement.sol
-│
 ├── package.json
 ├── package-lock.json
 ├── vite.config.js
 ├── eslint.config.js
 ├── index.html
-├── .gitignore
-└── README.md
+├── README.md
+└── .gitignore
 ```
-
-*Note: Add `src/contracts/RentalAgreement.sol` to the repository if it is not already present.*
 
 ---
 
 ## ▶️ 21. Quick Start Commands
 
-For teammates who have already completed the initial setup:
+For teammates who have already completed the initial software installation:
 
 ```bash
 git clone https://github.com/Vaishnavi200527/RentChain-Blockchain-Rental-System.git
@@ -800,11 +823,28 @@ git clone https://github.com/Vaishnavi200527/RentChain-Blockchain-Rental-System.
 cd RentChain-Blockchain-Rental-System
 
 npm install
+```
 
+**Before running the application:**
+
+1. Start Ganache.
+2. Connect MetaMask to Ganache Local.
+3. Copy the Solidity source from `src/contracts/RentalAgreement.sol` into Remix IDE.
+4. Compile and deploy the contract using the Landlord account.
+5. Copy the deployed contract address.
+6. Update `CONTRACT_ADDRESS` in `src/blockchain/contract.js`.
+
+Then start the application:
+
+```bash
 npm run dev
 ```
 
-Before using the application, make sure Ganache is running, MetaMask is connected to the correct network, and `contract.js` contains the address of the deployed contract on that network.
+Open the local URL displayed by Vite, normally:
+
+```text
+http://localhost:5173
+```
 
 ---
 
