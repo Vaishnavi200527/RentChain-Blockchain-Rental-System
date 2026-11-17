@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   FilePlus2,
@@ -10,11 +10,14 @@ import {
   Bell,
   Search,
   CheckCircle2,
+  RefreshCw
 } from "lucide-react";
 
 import {
   connectWallet,
-  createBlockchainAgreement
+  createBlockchainAgreement,
+  getAllAgreements,
+  acceptBlockchainAgreement
 } from "./blockchain/contract";
 
 import "./index.css";
@@ -78,6 +81,26 @@ function App() {
   const [walletAddress, setWalletAddress] = useState("");
   const [walletError, setWalletError] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const [agreements, setAgreements] = useState([]);
+  const [loadingAgreements, setLoadingAgreements] = useState(false);
+  const [transactions, setTransactions] = useState(() => {
+    try {
+      const saved = localStorage.getItem("rentchain_txs");
+      if (saved) return JSON.parse(saved);
+      // Pre-seed with user's already confirmed transaction
+      return [
+        {
+          hash: "0x48e233f0ae5dfd4306290b78c98b1c09d1223f880713a9f5573a19f77e67be30",
+          type: "Agreement Created",
+          agreementId: "1",
+          blockNumber: "Confirmed",
+          timestamp: new Date().toLocaleTimeString()
+        }
+      ];
+    } catch {
+      return [];
+    }
+  });
 
   const navigation = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -85,6 +108,50 @@ function App() {
     { name: "My Agreements", icon: Files },
     { name: "Transactions", icon: History }
   ];
+
+  function recordTransaction(tx) {
+    setTransactions((prev) => {
+      const updated = [tx, ...prev.filter((t) => t.hash !== tx.hash)];
+      try {
+        localStorage.setItem("rentchain_txs", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  }
+
+  async function loadAgreements() {
+    try {
+      setLoadingAgreements(true);
+      const list = await getAllAgreements();
+      setAgreements(list);
+    } catch (error) {
+      console.warn("Could not load agreements from blockchain:", error);
+    } finally {
+      setLoadingAgreements(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAgreements();
+  }, [walletAddress, activePage]);
+
+  useEffect(() => {
+    if (window.ethereum) {
+      const handleAccounts = (accounts) => {
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+        } else {
+          setWalletAddress("");
+        }
+      };
+      window.ethereum.on("accountsChanged", handleAccounts);
+      return () => {
+        window.ethereum.removeListener("accountsChanged", handleAccounts);
+      };
+    }
+  }, []);
 
   async function handleConnectWallet() {
     try {
@@ -100,8 +167,42 @@ function App() {
       }
 
       setWalletAddress(wallet.address);
+      await loadAgreements();
     } catch (error) {
       setWalletError(getErrorMessage(error));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function handleAgreementCreated(result) {
+    recordTransaction({
+      hash: result.transactionHash,
+      type: "Agreement Created",
+      agreementId: result.agreementId,
+      blockNumber: result.blockNumber?.toString() || "Confirmed",
+      timestamp: new Date().toLocaleTimeString()
+    });
+    loadAgreements();
+  }
+
+  async function handleAcceptAgreement(id) {
+    try {
+      setConnecting(true);
+      setWalletError("");
+      await ensureGanacheNetwork();
+      const result = await acceptBlockchainAgreement(id);
+      recordTransaction({
+        hash: result.transactionHash,
+        type: "Agreement Accepted",
+        agreementId: result.agreementId,
+        blockNumber: result.blockNumber?.toString() || "Confirmed",
+        timestamp: new Date().toLocaleTimeString()
+      });
+      await loadAgreements();
+      alert(`Agreement #${id} accepted successfully on the blockchain!`);
+    } catch (err) {
+      setWalletError(getErrorMessage(err));
     } finally {
       setConnecting(false);
     }
@@ -202,6 +303,8 @@ function App() {
           {activePage === "Dashboard" && (
             <DashboardPage
               walletAddress={walletAddress}
+              agreements={agreements}
+              loading={loadingAgreements}
               onCreate={() => setActivePage("Create Agreement")}
               onViewAll={() => setActivePage("My Agreements")}
             />
@@ -211,46 +314,25 @@ function App() {
             <CreateAgreementPage
               walletAddress={walletAddress}
               onConnect={handleConnectWallet}
+              onAgreementCreated={handleAgreementCreated}
             />
           )}
 
           {activePage === "My Agreements" && (
-            <div className="welcome">
-              <div>
-                <p className="eyebrow">RENTCHAIN / AGREEMENTS</p>
-                <h1>My Agreements</h1>
-                <p className="subtitle">
-                  View rental agreements recorded on the blockchain.
-                </p>
-                <p>
-                  Agreement records will be displayed here.
-                  Connect your contract data to load them.
-                </p>
-              </div>
-
-              <button
-                className="primary-button"
-                onClick={() => setActivePage("Create Agreement")}
-              >
-                + Create Agreement
-              </button>
-            </div>
+            <MyAgreementsPage
+              walletAddress={walletAddress}
+              agreements={agreements}
+              loading={loadingAgreements}
+              onRefresh={loadAgreements}
+              onCreate={() => setActivePage("Create Agreement")}
+              onAccept={handleAcceptAgreement}
+            />
           )}
 
           {activePage === "Transactions" && (
-            <div className="welcome">
-              <div>
-                <p className="eyebrow">RENTCHAIN / BLOCKCHAIN</p>
-                <h1>Transactions</h1>
-                <p className="subtitle">
-                  Blockchain transaction history and verification.
-                </p>
-                <p>
-                  Successfully submitted transaction hashes will
-                  be available after connecting transaction history.
-                </p>
-              </div>
-            </div>
+            <TransactionsPage
+              transactions={transactions}
+            />
           )}
 
         </section>
@@ -263,9 +345,15 @@ function App() {
 
 function DashboardPage({
   walletAddress,
+  agreements,
+  loading,
   onCreate,
   onViewAll
 }) {
+  const totalAgreements = agreements.length;
+  const pendingAgreements = agreements.filter((a) => !a.accepted).length;
+  const acceptedAgreements = agreements.filter((a) => a.accepted).length;
+
   return (
     <>
       <div className="welcome">
@@ -293,20 +381,20 @@ function DashboardPage({
 
         <StatCard
           title="Total Agreements"
-          value="—"
-          change="Awaiting blockchain data"
+          value={loading ? "..." : totalAgreements.toString()}
+          change={`${totalAgreements} recorded on-chain`}
         />
 
         <StatCard
           title="Pending Agreements"
-          value="—"
-          change="Awaiting blockchain data"
+          value={loading ? "..." : pendingAgreements.toString()}
+          change="Awaiting tenant signature"
         />
 
         <StatCard
           title="Accepted Agreements"
-          value="—"
-          change="Awaiting blockchain data"
+          value={loading ? "..." : acceptedAgreements.toString()}
+          change="Active verified leases"
         />
 
         <StatCard
@@ -350,12 +438,31 @@ function DashboardPage({
           </thead>
 
           <tbody>
-            <tr>
-              <td colSpan="5">
-                No agreements loaded yet. Create an agreement
-                to begin recording blockchain transactions.
-              </td>
-            </tr>
+            {agreements.length === 0 ? (
+              <tr>
+                <td colSpan="5">
+                  {loading
+                    ? "Loading agreements from blockchain..."
+                    : "No agreements loaded yet. Create an agreement to begin recording blockchain transactions."}
+                </td>
+              </tr>
+            ) : (
+              agreements.slice(0, 5).map((a) => (
+                <tr key={a.id}>
+                  <td><strong>#{a.id}</strong></td>
+                  <td>{a.propertyReference}</td>
+                  <td>₹{Number(a.monthlyRent).toLocaleString()}</td>
+                  <td title={a.tenant}>
+                    {a.tenant.slice(0, 6)}...{a.tenant.slice(-4)}
+                  </td>
+                  <td>
+                    <span className={`badge ${a.accepted ? "accepted" : "pending"}`}>
+                      {a.accepted ? "Accepted" : "Pending"}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
 
         </table>
@@ -385,9 +492,225 @@ function DashboardPage({
   );
 }
 
+function MyAgreementsPage({
+  walletAddress,
+  agreements,
+  loading,
+  onRefresh,
+  onCreate,
+  onAccept
+}) {
+  return (
+    <>
+      <div className="welcome">
+        <div>
+          <p className="eyebrow">RENTCHAIN / AGREEMENTS</p>
+          <h1>My Agreements</h1>
+          <p className="subtitle">
+            View rental agreements recorded on the blockchain.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <button
+            className="secondary-button"
+            onClick={onRefresh}
+            disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh
+          </button>
+          <button className="primary-button" onClick={onCreate}>
+            + Create Agreement
+          </button>
+        </div>
+      </div>
+
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>PROPERTY</th>
+              <th>MONTHLY RENT</th>
+              <th>SECURITY DEPOSIT</th>
+              <th>TENANT</th>
+              <th>LANDLORD</th>
+              <th>STATUS</th>
+              <th>ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            {agreements.length === 0 ? (
+              <tr>
+                <td colSpan="8" style={{ textAlign: "center", padding: "30px" }}>
+                  {loading
+                    ? "Loading agreements from blockchain..."
+                    : "No agreements found on blockchain yet."}
+                </td>
+              </tr>
+            ) : (
+              agreements.map((a) => {
+                const isTenant =
+                  walletAddress &&
+                  walletAddress.toLowerCase() === a.tenant.toLowerCase();
+                const isLandlord =
+                  walletAddress &&
+                  walletAddress.toLowerCase() === a.landlord.toLowerCase();
+
+                return (
+                  <tr key={a.id}>
+                    <td>
+                      <strong>#{a.id}</strong>
+                    </td>
+                    <td>{a.propertyReference}</td>
+                    <td>₹{Number(a.monthlyRent).toLocaleString()}</td>
+                    <td>₹{Number(a.securityDeposit).toLocaleString()}</td>
+                    <td title={a.tenant}>
+                      {a.tenant.slice(0, 6)}...{a.tenant.slice(-4)}
+                      {isTenant && (
+                        <span
+                          style={{
+                            marginLeft: "6px",
+                            fontSize: "10px",
+                            color: "#2563eb",
+                            fontWeight: "bold"
+                          }}
+                        >
+                          (You)
+                        </span>
+                      )}
+                    </td>
+                    <td title={a.landlord}>
+                      {a.landlord.slice(0, 6)}...{a.landlord.slice(-4)}
+                      {isLandlord && (
+                        <span
+                          style={{
+                            marginLeft: "6px",
+                            fontSize: "10px",
+                            color: "#16a36a",
+                            fontWeight: "bold"
+                          }}
+                        >
+                          (You)
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          a.accepted ? "accepted" : "pending"
+                        }`}
+                      >
+                        {a.accepted ? "Accepted" : "Pending"}
+                      </span>
+                    </td>
+                    <td>
+                      {!a.accepted && isTenant ? (
+                        <button
+                          className="primary-button"
+                          style={{ padding: "6px 14px", fontSize: "11px" }}
+                          onClick={() => onAccept(a.id)}
+                        >
+                          Accept
+                        </button>
+                      ) : a.accepted ? (
+                        <span
+                          style={{
+                            color: "#16a36a",
+                            fontSize: "12px",
+                            fontWeight: "600"
+                          }}
+                        >
+                          ✓ Signed
+                        </span>
+                      ) : (
+                        <span style={{ color: "#8390a5", fontSize: "11px" }}>
+                          Awaiting Tenant
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function TransactionsPage({ transactions }) {
+  return (
+    <>
+      <div className="welcome">
+        <div>
+          <p className="eyebrow">RENTCHAIN / BLOCKCHAIN</p>
+          <h1>Transactions</h1>
+          <p className="subtitle">
+            Blockchain transaction history and verification on Ganache.
+          </p>
+        </div>
+      </div>
+
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ACTION</th>
+              <th>AGREEMENT ID</th>
+              <th>TRANSACTION HASH</th>
+              <th>STATUS</th>
+              <th>TIME</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ textAlign: "center", padding: "30px" }}>
+                  No transactions recorded yet in this session.
+                </td>
+              </tr>
+            ) : (
+              transactions.map((tx, idx) => (
+                <tr key={tx.hash || idx}>
+                  <td>
+                    <strong>{tx.type}</strong>
+                  </td>
+                  <td>#{tx.agreementId}</td>
+                  <td
+                    style={{ fontFamily: "monospace", fontSize: "11px" }}
+                    title={tx.hash}
+                  >
+                    {tx.hash.slice(0, 16)}...{tx.hash.slice(-10)}
+                    <button
+                      type="button"
+                      className="text-button"
+                      style={{ marginLeft: "10px", fontSize: "11px" }}
+                      onClick={() => navigator.clipboard.writeText(tx.hash)}
+                    >
+                      Copy
+                    </button>
+                  </td>
+                  <td>
+                    <span className="badge accepted">Confirmed</span>
+                  </td>
+                  <td>{tx.timestamp}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function CreateAgreementPage({
   walletAddress,
-  onConnect
+  onConnect,
+  onAgreementCreated
 }) {
   const [formData, setFormData] = useState({
     propertyReference: "",
@@ -498,6 +821,9 @@ function CreateAgreementPage({
       const result = await createBlockchainAgreement(formData);
 
       setSuccess(result);
+      if (onAgreementCreated) {
+        onAgreementCreated(result);
+      }
 
       // Clear form after successful transaction.
       setFormData({

@@ -13,7 +13,7 @@ export const GANACHE_RPC_URL = "http://127.0.0.1:7545";
 // DEPLOYED CONTRACT ADDRESS
 // =====================================
 export const CONTRACT_ADDRESS =
-  "0xEBA5E2B1780ca9fEA27aE2844372CDa2F4bE97d2";
+  "0x177E3A642990959C94E6EBDaCf6266415a5A5A49";
 
 // =====================================
 // RENTAL AGREEMENT ABI
@@ -34,7 +34,7 @@ export const CONTRACT_ABI = [
 ];
 
 // =====================================
-// CONNECT METAMASK WALLET
+// CONNECT METAMASK WALLETco
 // =====================================
 
 export async function connectWallet() {
@@ -244,6 +244,35 @@ export async function getAgreement(agreementId) {
     accepted: a.accepted,
     createdAt: a.createdAt.toString()
   };
+}
+
+export async function getAllAgreements() {
+  const contract = await getRentalContract(false);
+  const nextId = await contract.nextAgreementId();
+  const total = Number(nextId);
+  const list = [];
+
+  for (let i = 1; i < total; i++) {
+    try {
+      const a = await contract.getAgreement(BigInt(i));
+      list.push({
+        id: a.id.toString(),
+        propertyReference: a.propertyReference,
+        landlord: a.landlord,
+        tenant: a.tenant,
+        monthlyRent: a.monthlyRent.toString(),
+        securityDeposit: a.securityDeposit.toString(),
+        startDate: a.startDate.toString(),
+        endDate: a.endDate.toString(),
+        accepted: a.accepted,
+        createdAt: a.createdAt.toString()
+      });
+    } catch (err) {
+      console.warn(`Error fetching agreement ${i}:`, err);
+    }
+  }
+
+  return list;
 }
 
 // =====================================
